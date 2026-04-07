@@ -1,11 +1,10 @@
 using System.Diagnostics;
-using System.Text;
 using System.Text.RegularExpressions;
 using VoltAge.Models;
 
 namespace VoltAge.Commands;
 
-public class UPower
+public static class UPower
 {
 	public static bool IsCommandAvailable()
 	{
@@ -21,20 +20,20 @@ public class UPower
 	}
 
 
-	public static string[] LoadDevicesInfos()
+	public static List<Device> LoadDevicesInfos()
 	{
 		// Get devices
 		string[] devicesEnums = RunCommand("upower", ["-e"]).Split("\n");
 		List<Device> devices = [];
 		foreach (string deviceEnum in devicesEnums)
 		{
-			string deviceInfo = RunCommand("upower", ["-e", deviceEnum]);
+			string deviceInfo = RunCommand("upower", ["-i", deviceEnum]);
+			Device device = new()
+			{
+				Battery = new Battery()
+			};
 			foreach (string line in deviceInfo.Split("\n"))
 			{
-				Device device = new()
-				{
-					Battery = new Battery()
-				};
 				var trimmed = line.Trim();
 				if (string.IsNullOrEmpty(trimmed)) continue;
 
@@ -75,13 +74,15 @@ public class UPower
 				else if (trimmed.StartsWith("voltage:"))
 					device.Battery.Voltage = trimmed.Split(":")[1].Trim();
 				else if (trimmed.StartsWith("charge-cycles:"))
-					device.Battery.ChargeCycles = int.Parse(Regex.Match(trimmed, @"\d+").Value);
+					device.Battery.ChargeCycles = Regex.Match(trimmed, @"\d+").Value == "N/A" ? int.Parse(Regex.Match(trimmed, @"\d+").Value) : 0;
 				else if (trimmed.StartsWith("percentage:"))
 					device.Battery.Percentage = float.Parse(Regex.Match(trimmed, @"\d+").Value);
 				else if (trimmed.StartsWith("capacity:"))
 					device.Battery.Capacity = float.Parse(Regex.Match(trimmed, @"\d+").Value);
 			}
+			devices.Add(device);
 		}
+		return devices;
 	}
 
 	private static string RunCommand(string command, string[] args)
